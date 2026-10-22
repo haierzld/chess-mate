@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>Chess Mate · 国际象棋（人机）</title>
+<style>
+  /* ===== 古典木质棋桌风格：深棕描边 + 米黄浅格 + 柔和投影 ===== */
+  :root {
+    --bg: #f7f1e3;
+    --panel: #fffdf7;
+    --brown-deep: #4e3116;
+    --brown: #8a5a2b;
+    --line: #e0d3ba;
+    --text: #33271a;
+    --text-sub: #8a7661;
+    --accent: #f7ec74;
+    --serif: Georgia, "Times New Roman", "Songti SC", "STSong", "SimSun", serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px;
+    background: radial-gradient(#fbf7ec, #efe4cd);
+    color: var(--text);
+    font-family: var(--serif);
+  }
+
+  /* ===== 顶部栏：标题 + 数据统计 + 难度 ===== */
+  .topbar { max-width: 1060px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .title { font-size: 23px; font-weight: 700; letter-spacing: 2px; color: var(--brown-deep); }
+  .title small { display: block; font-size: 12px; font-weight: 400; color: var(--text-sub); letter-spacing: 0; }
+  .top-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .stats { font-size: 12px; color: var(--text-sub); }
+  .stats b { color: var(--brown-deep); font-size: 14px; }
+  select, button.btn {
+    font-family: var(--serif); padding: 6px 12px; font-size: 13px;
+    border: 1px solid var(--brown); border-radius: 6px;
+    background: #fff; color: var(--brown-deep); cursor: pointer;
+  }
+  button.btn { background: var(--brown); color: #fff; }
+  button.btn:hover { filter: brightness(1.12); }
+  button.btn.ghost { background: #fff; color: var(--brown); }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ===== 主体 ===== */
+  .main { max-width: 1060px; margin: 0 auto; display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .boardwrap { position: relative; }
+  #board {
+    border: 5px solid var(--brown-deep); border-radius: 4px;
+    box-shadow: 0 10px 26px rgba(78, 49, 22, .35);
+    cursor: pointer; display: block; width: 640px; height: 640px;
+  }
+  .banner {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    padding: 6px 22px; border-radius: 20px; font-size: 16px; font-weight: 700; letter-spacing: 2px;
+    pointer-events: none; white-space: nowrap;
+  }
+  .banner-check { background: rgba(190,40,30,.92); color: #fff; box-shadow: 0 3px 12px rgba(190,40,30,.45); animation: pop .25s ease-out; }
+  .banner-think { background: rgba(30,24,18,.82); color: #ffe9b8; font-size: 14px; letter-spacing: 1px; }
+  .banner-tip  { background: rgba(78,49,22,.9); color: #ffeccb; font-size: 13px; letter-spacing: 1px; font-weight: 400; }
+  @keyframes pop { from { transform: translateX(-50%) scale(.7); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+
+  .toolbar { max-width: 640px; margin: 10px 0 0; display: flex; gap: 8px; flex-wrap: wrap; }
+  .piece-info {
+    max-width: 640px; margin-top: 8px; padding: 8px 14px;
+    border-left: 4px solid var(--brown); background: #fffdf7;
+    font-size: 13px; color: var(--text-sub); min-height: 34px;
+  }
+  .piece-info b { color: var(--brown-deep); font-size: 14px; }
+
+  .panel { flex: 1; min-width: 250px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; box-shadow: 0 4px 14px rgba(78,49,22,.08); }
+  .panel h3 { margin: 0 0 10px; font-size: 14px; color: var(--brown-deep); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 14px; }
+  .row .k { color: var(--text-sub); }
+  .row .v { font-weight: 600; }
+  .turn-badge { display: inline-flex; padding: 2px 10px; border-radius: 20px; font-size: 13px; font-weight: 700; }
+  .turn-w { background: #fff8df; border: 1px solid #d9bf6a; color: #7a5c14; }
+  .turn-b { background: #2e2318; border: 1px solid #2e2318; color: #f6ecd8; }
+
+  .matbar { display: flex; height: 15px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #f3ece0; }
+  .mat-w { background: linear-gradient(#fff6dd, #f0dcaa); transition: width .25s ease; }
+  .mat-b { background: #3b2c1e; transition: width .25s ease; }
+  .mat-diff { font-size: 13px; margin-top: 6px; color: var(--text-sub); }
+  .mat-diff b { font-size: 15px; color: var(--brown-deep); }
+
+  .loot { min-height: 44px; margin-top: 4px; padding: 6px 8px; border: 1px dashed var(--line); border-radius: 6px; background: #fdfbf5; font-size: 26px; line-height: 1.2; }
+  .loot-label { font-size: 12px; color: var(--text-sub); margin-top: 10px; }
+  .loot-item { display: inline-block; animation: slideIn .15s ease-out; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(26px) scale(.6); } to { opacity: 1; transform: translateX(0) scale(1); } }
+  .hint { margin-top: 14px; font-size: 12px; line-height: 1.8; color: var(--text-sub); border-top: 1px solid var(--line); padding-top: 10px; }
+
+  /* ===== 走子记录 ===== */
+  .logwrap { max-width: 1060px; margin: 14px auto 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+  .loghead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .loghead h3 { margin: 0; font-size: 13px; color: var(--brown-deep); }
+  #reviewBar { font-size: 12px; color: #b3412f; display: none; }
+  #replayBar { font-size: 12px; color: var(--brown-deep); display: none; }
+  #replayBar button, #reviewBar button { font-family: var(--serif); font-size: 12px; padding: 3px 10px; border: 1px solid var(--brown); border-radius: 5px; background: #fff; color: var(--brown); cursor: pointer; }
+  #log { height: 130px; overflow-y: auto; font-size: 13px; line-height: 1.9; font-family: Consolas, "Courier New", monospace; }
+  #log div { border-bottom: 1px dotted #efe6d4; padding: 0 4px; cursor: pointer; }
+  #log div:hover { background: #fdf4dd; }
+  #log div.active { background: var(--accent); font-weight: 700; }
+  #log .cap { color: #b3412f; }
+  .empty { color: #b6a68f; }
+
+  /* ===== 遮罩：主菜单 / 弹窗 ===== */
+  .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(30,20,10,.55); }
+  #menuBg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .menu-box {
+    position: relative; text-align: center; color: #fff6e2;
+    padding: 34px 46px; border-radius: 12px;
+    background: rgba(46,30,16,.78); border: 1px solid rgba(240,217,181,.35);
+    box-shadow: 0 18px 44px rgba(0,0,0,.4);
+  }
+  .menu-box h1 { margin: 0 0 6px; font-size: 42px; letter-spacing: 4px; }
+  .menu-box p { margin: 0 0 18px; font-size: 13px; opacity: .8; }
+  .menu-btns { display: flex; flex-direction: column; gap: 10px; width: 240px; margin: 0 auto; }
+  .menu-btns button { font-family: var(--serif); font-size: 15px; padding: 10px; border-radius: 8px; border: 1px solid #f0d9b5; background: rgba(255,255,255,.08); color: #fff6e2; cursor: pointer; }
+  .menu-btns button:hover { background: rgba(255,255,255,.2); }
+  .menu-btns button:disabled { opacity: .45; cursor: not-allowed; }
+  .menu-btns select { width: 240px; margin: 0 auto 4px; }
+
+  .modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(30,20,10,.5); }
+  .modal-box {
+    background: var(--panel); border: 2px solid var(--brown-deep); border-radius: 10px;
+    padding: 22px 26px; max-width: 680px; box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  }
+  .modal-box h2 { margin: 0 0 6px; font-size: 20px; color: var(--brown-deep); }
+  .modal-box .sub { font-size: 13px; color: var(--text-sub); margin-bottom: 14px; line-height: 1.7; }
+  .promo-tip { font-size: 13px; color: #b3412f; background: #fff3e0; border-left: 3px solid #d98b2b; padding: 6px 10px; margin: 10px 0; }
+  .promo-grid { display: flex; gap: 12px; justify-content: center; margin: 14px 0; }
+  .promo-grid button { font-family: var(--serif); width: 96px; padding: 12px 6px; border: 1px solid var(--brown); border-radius: 8px; background: #fffdf7; cursor: pointer; }
+  .promo-grid button:hover { background: var(--accent); }
+  .promo-grid span { display: block; font-size: 40px; line-height: 1.1; }
+  .modal-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+  #chart { border: 1px solid var(--line); border-radius: 6px; background: #fffdf7; display: block; max-width: 100%; }
+  textarea.export { width: 100%; height: 190px; font-family: Consolas, monospace; font-size: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  .result-title { font-size: 26px; margin-bottom: 4px; }
+
+  /* ===== 前 7 课理论对照区 ===== */
+  .theorywrap { max-width: 1060px; margin: 14px auto 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .theory-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+  .theory-head h3 { margin: 0; font-size: 14px; color: var(--brown-deep); }
+  .theory-head .toggle { font-size: 12px; color: var(--text-sub); border: 1px solid var(--line); border-radius: 5px; padding: 2px 9px; background: #fff; }
+  .theory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 10px; margin-top: 10px; }
+  .tcard { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fffdf7; }
+  .tcard h4 { margin: 0 0 6px; font-size: 14px; color: var(--brown-deep); display: flex; align-items: center; gap: 7px; }
+  .tcard h4 .no { display: inline-block; min-width: 24px; text-align: center; font-size: 12px; padding: 1px 6px; border-radius: 10px; background: var(--brown); color: #fff; font-weight: 400; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+  .chip { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #f3ece0; border: 1px solid var(--line); color: var(--brown); }
+  .tcard ul { margin: 0; padding-left: 16px; font-size: 12px; line-height: 1.75; color: var(--text-sub); }
+  .tcard ul b { color: var(--text); font-weight: 600; }
+  .tcard .spot { margin-top: 9px; }
+  .tcard .spot button { font-family: var(--serif); font-size: 11px; padding: 3px 9px; border: 1px solid var(--brown); border-radius: 5px; background: #fff; color: var(--brown); cursor: pointer; }
+  .tcard .spot button:hover { background: var(--accent); }
+  .theory-note { margin-top: 10px; font-size: 12px; line-height: 1.8; color: var(--text-sub); border-top: 1px solid var(--line); padding-top: 8px; }
+  .theory-note b { color: var(--brown-deep); }
+  @keyframes flashRing { 0%, 100% { box-shadow: 0 0 0 0 rgba(247,236,116,0); } 50% { box-shadow: 0 0 0 5px rgba(247,236,116,.95); } }
+  .flash { animation: flashRing .55s ease-in-out 3; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="title">
+    Chess Mate · 国际象棋（人机）
+    <small>第 3 轮：完整规则 + 完整体验（易位 / 吃过路兵 / 升变 / 终局判定 / 复盘 / 评价分曲线）· 页面底部含第 1–7 课理论对照</small>
+  </div>
+  <div class="top-right">
+    <span class="stats">已玩 <b id="stGames">0</b> 局 · 胜 <b id="stWin">0</b> · 负 <b id="stLoss">0</b> · 和 <b id="stDraw">0</b></span>
+    <label for="difficulty" style="font-size:13px;color:var(--text-sub)">难度</label>
+    <select id="difficulty">
+      <option value="easy">初级（看 1 步）</option>
+      <option value="normal" selected>中级（算 3 步）</option>
+      <option value="hard">高级（算 4 步）</option>
+    </select>
+  </div>
+</div>
+
+<div class="main">
+  <div class="boardwrap">
+    <canvas id="board" width="640" height="640"></canvas>
+    <div class="banner banner-check" id="bannerCheck" style="display:none">将 军 ！</div>
+    <div class="banner banner-think" id="bannerThink" style="display:none">电脑思考中…</div>
+    <div class="banner banner-tip"  id="bannerTip"   style="display:none"></div>
+
+    <div class="toolbar">
+      <button class="btn" id="btnNew">新 局</button>
+      <button class="btn ghost" id="btnUndo">悔 棋</button>
+      <button class="btn ghost" id="btnHint">提 示</button>
+      <button class="btn ghost" id="btnResign">认 输</button>
+      <button class="btn ghost" id="btnDraw">求 和</button>
+      <button class="btn ghost" id="btnExport">导出棋谱</button>
+      <button class="btn ghost" id="btnTheory">前 7 课理论</button>
+      <button class="btn ghost" id="btnMenu">主菜单</button>
+    </div>
+    <div class="piece-info" id="pieceInfo">点击任意棋子，这里会显示它的名称、分值与一句话说明。</div>
+  </div>
+
+  <div class="panel">
+    <h3>对局信息</h3>
+    <div class="row"><span class="k">当前轮到</span><span class="v"><span id="turnBadge" class="turn-badge turn-w">白方（你）</span></span></div>
+    <div class="row"><span class="k">已走步数</span><span class="v"><span id="plyCount">0</span> 步</span></div>
+    <div class="row"><span class="k">当前回合</span><span class="v">第 <span id="moveCount">1</span> 回合</span></div>
+    <div class="row"><span class="k">50 步规则</span><span class="v"><span id="halfmove">0</span> / 100</span></div>
+
+    <h3 style="margin-top:16px">子力优势（目标可见化）</h3>
+    <div class="matbar"><div class="mat-w" id="matW" style="width:50%"></div><div class="mat-b" id="matB" style="width:50%"></div></div>
+    <div class="mat-diff">白方领先 <b id="matDiff">+0.0</b><span id="matSide" style="float:right"></span></div>
+
+    <div class="loot-label">战利品区 · 白方吃掉的黑子</div>
+    <div class="loot" id="lootW"><span class="empty">暂无</span></div>
+    <div class="loot-label">战利品区 · 黑方吃掉的白子</div>
+    <div class="loot" id="lootB"><span class="empty">暂无</span></div>
+
+    <div class="hint">
+      操作：点棋子 → 黄格高亮 + 合法目标（红圈=可吃）· 绿格=对手上一步<br />
+      特殊规则已开启：王车易位（点王再点它左右两格）· 吃过路兵 · 兵升变<br />
+      快捷键：结算后 ↑ ↓ 可逐步复盘
+    </div>
+  </div>
+</div>
+
+<div class="logwrap">
+  <div class="loghead">
+    <h3>走子记录（点击任意一行可回顾当时局面）</h3>
+    <span>
+      <span id="reviewBar">正在回顾第 <b id="reviewNo">0</b> 步 <button id="btnBackNow">返回当前棋局</button></span>
+      <span id="replayBar">复盘 第 <b id="replayNo">0</b>/<b id="replayTotal">0</b> 步 · 评价分 <b id="replayEval">+0.0</b>
+        <button id="replayPrev">← 上一步</button><button id="replayNext">下一步 →</button>
+        <button id="replayPlay">自动播放</button><button id="replayExit">退出复盘</button>
+      </span>
+    </span>
+  </div>
+  <div id="log"><span class="empty">新局开始，白先走。</span></div>
+</div>
+
+<!-- ===== 前 7 课理论对照区（第 1–7 课核心内容与本游戏的落点） ===== -->
+<div class="theorywrap" id="theoryWrap">
+  <div class="theory-head" id="theoryHead">
+    <h3>前 7 课理论对照 · 这盘棋站在哪 7 块地基上</h3>
+    <span class="toggle" id="theoryToggle">收起 ▲</span>
+  </div>
+  <div class="theory-grid" id="theoryGrid"></div>
+  <div class="theory-note">
+    <b>串讲一句话</b>：没有「将死」这个目标它就是玩具（第 1 课）→ 我们能改的只有 M 层规则，D 和 A 是玩家自己长出来的（第 2 课）→
+    每一次点击都必须有反馈（第 3 课）→ 难度三档就是把挑战拉回「技能 ≈ 挑战」的心流通道（第 4 课）→
+    统计给成就型、提示给探索型、悔棋给你自主感（第 5 课）→ 没有剧本，棋谱就是你这一局的涌现故事（第 6 课）→
+    <b>棋盘上没有骰子，所以没有随机，才有第 8 课的「完美信息」（第 7 课）</b>。
+  </div>
+</div>
+
+<!-- ===== 主菜单 ===== -->
+<div class="overlay" id="menuOverlay">
+  <canvas id="menuBg"></canvas>
+  <div class="menu-box">
+    <h1>Chess Mate</h1>
+    <p>千年棋局 · 人机对弈 · 平面游戏设计 第 8 课示例</p>
+    <select id="menuDifficulty">
+      <option value="easy">初级（看 1 步）</option>
+      <option value="normal" selected>中级（算 3 步）</option>
+      <option value="hard">高级（算 4 步）</option>
+    </select>
+    <div class="menu-btns">
+      <button id="btnStart">开始新局</button>
+      <button id="btnContinue">继续上局</button>
+      <button id="btnHow">玩法说明</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+ * Chess Mate · 第 3 轮（完整版）
+ * board[r][c]：r=0 顶部(黑底线/8线)，r=7 底部(白底线/1线)，c=0..7 对应 a..h
+ * 棋子对象：{ type:'k|q|r|b|n|p', color:'w|b' }
+ * 对局状态：game = { board, turn, castling, ep, halfmove, ply, repMap }
+ * =========================================================================
+ *
+ * 【理论映射注释块】本游戏各功能对应《平面游戏设计》前 7 课的哪条理论
+ * -------------------------------------------------------------------------
+ * 第 1 课（Schell 定义 / 四大特征）
+ *   · 明确目标   → "将死对方的王"+ 五种和棋条件（没有终局条件 = 只是玩具）
+ *   · 规则约束   → 六种走法 + 易位/吃过路兵/升变（见 generateMoves）
+ *   · 冲突       → 玩家(白) vs 电脑(黑)，PvE
+ *   · 反馈系统   → 选中高亮、上一步绿标、将军红闪、音效、子力优势条
+ *   · 自愿参与   → 难度自选、随时悔棋/认输/求和
+ * 第 2 课（MDA 框架 / 三顶帽子）
+ *   · M 机制层   → 走法规则、子力价值表 VALUES、搜索深度、PST 位置表
+ *   · D 动态层   → 兑子、牵制、弃子、空间争夺（规则里没写，是玩家长出来的）
+ *   · A 体验层   → 紧张、懊悔、"我居然赢了"（设计师只能通过 M 间接影响它）
+ * 第 3 课（规则 · 目标 · 反馈）
+ *   · 可感知进度 → 子力优势条 + "+3.2" 差值（updateMaterialBar）
+ *   · 即时反馈   → 点击 0.3 秒内有回应；吃子淡出 150ms；移动缓动 200ms
+ *   · 负反馈     → 初级 AI 故意犯错(blunderRate) + "提示"按钮(脚手架)
+ * 第 4 课（平衡 · 难度曲线 · 心流）
+ *   · 对称平衡   → 双方同起点、同规则、同子力（最纯粹的对称平衡样本）
+ *   · 难度曲线   → CONFIG.levels 的三档搜索深度 1/3/4 = 挑战旋钮
+ *   · 心流       → 挑战 ≈ 技能；评价分曲线让你看见自己哪一回合掉出心流区
+ * 第 5 课（Bartle / 8 种乐趣 / SDT）
+ *   · 成就型     → 局数统计 + 导出棋谱
+ *   · 探索型     → 提示 + 逐步复盘
+ *   · 挑战型     → 高级难度（深度 4）
+ *   · 自主感     → 难度自选、悔棋、认输；胜任感 → 复盘 + 评价分曲线
+ * 第 6 课（三种叙事 / 环境叙事 / 主题-机制统一）
+ *   · 涌现叙事   → 没有剧本，棋谱就是"你这一局的故事"，可导出可回放
+ *   · 环境叙事   → 古典木质棋桌配色 + 棋子一句话说明（showPieceInfo）
+ *   · 主题即机制 → 兵升变面板上那句"小兵也能当国王"（showPromotionModal）
+ * 第 7 课（桌游组件与术语 / 组件思维）
+ *   · 版图       → 固定 8×8 棋盘（空间维度）；没有骰子 → 没有随机 → 完美信息
+ *   · Token      → Unicode 棋子字符；玩家板 → 右侧信息面板；事件日志 → 走子记录
+ *   · 组件思维   → 一种组件一种用途；"棋子说明只在选中时出现"= 控制信息量
+ * ------------------------------------------------------------------------- */
+
+// ---------- 常量 ----------
+const SIZE = 640, SQ = SIZE / 8;
+const LIGHT = '#f0d9b5', DARK = '#b58863', SELECT = '#f7ec74';
+const FILES = ['a','b','c','d','e','f','g','h'];
+const MATE = 100000;
+
+const GLYPH = {
+  w: { k:'♔', q:'♕', r:'♖', b:'♗', n:'♘', p:'♙' },
+  b: { k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟' }
+};
+const NAME = { k:'王', q:'后', r:'车', b:'象', n:'马', p:'兵' };
+const NAME_EN = { k:'King', q:'Queen', r:'Rook', b:'Bishop', n:'Knight', p:'Pawn' };
+// 棋子说明（第一次选中时在信息条显示）
+const DESC = {
+  k: '不能被吃掉的目标——被将死就输，价值记作无限大。',
+  q: '直线 + 斜线通吃，棋盘上威力最大的单位。',
+  r: '控制整条直线与横线，残局里最能"干活"。',
+  b: '永远待在同色格上，双象配合能封锁两条斜线。',
+  n: '唯一能越过其他棋子的单位，喜欢跳到中心。',
+  p: '只能前进不能后退，走到底线可以升变——弱者的希望。'
+};
+
+/* 子力价值表：兵1 马3 象3 车5 后9 王∞（以兵=100 为基准单位）
+ * 详见 evaluate() 处的设计意图注释 */
+const VALUES = { p:100, n:320, b:330, r:500, q:900, k:20000 };
+
+/* 棋子位置表 Piece-Square Table（提升 AI 的"位置感"）
+ * 表按 rank1→rank8 书写（索引 0 = rank1 = 白方底线 = board 第 7 行）
+ * 白方取 table[7-r][c]，黑方取 table[r][c]（镜像） */
+const PST_KNIGHT = [
+  [-50,-40,-30,-30,-30,-30,-40,-50],
+  [-40,-20,  0,  5,  5,  0,-20,-40],
+  [-30,  5, 10, 15, 15, 10,  5,-30],
+  [-30,  0, 15, 20, 20, 15,  0,-30],
+  [-30,  5, 15, 20, 20, 15,  5,-30],
+  [-30,  0, 10, 15, 15, 10,  0,-30],
+  [-40,-20,  0,  0,  0,  0,-20,-40],
+  [-50,-40,-30,-30,-30,-30,-40,-50]
+];
+const PST_PAWN = [
+  [  0,  0,  0,  0,  0,  0,  0,  0],
+  [  5, 10, 10,-20,-20, 10, 10,  5],
+  [  5, -5,-10,  0,  0,-10, -5,  5],
+  [  0,  0,  0, 20, 20,  0,  0,  0],
+  [  5,  5, 10, 25, 25, 10,  5,  5],
+  [ 10, 10, 20, 30, 30, 20, 10, 10],
+  [ 50, 50, 50, 50, 50, 50, 50, 50],
+  [  0,  0,  0,  0,  0,  0,  0,  0]
+];
+
+/* ====== AI 与难度的集中配置 ======
+ * 【设计意图】难度 = 搜索深度 + 犯错率 + 是否怕被将军：
+ * 搜索深度决定 AI 能"看到几步"，也就是挑战的强度；玩家技能不变时，
+ * 调深度就是把挑战拉回"技能 ≈ 挑战"的心流通道（第 4 课 心流）。
+ * 初级还会故意手滑（35%）——这是给新手的负反馈缓冲，避免刚上手就被打崩。 */
+const CONFIG = {
+  difficulty: 'normal',
+  timeBudgetMs: 1500,   // AI 思考时间上限：超时就用当前最优解落子
+  frameSliceMs: 100,    // 每个时间片最多算多久，之后让出主线程（避免页面卡死）
+  levels: {
+    easy:   { name:'初级', depth:1, blunderRate:0.35, checkPenalty:false, usePst:false },
+    normal: { name:'中级', depth:3, blunderRate:0.00, checkPenalty:false, usePst:true  },
+    hard:   { name:'高级', depth:4, blunderRate:0.00, checkPenalty:true,  usePst:true  }
+  }
+};
+
+// ---------- 运行时状态 ----------
+let game = null;
+let moveLog = [];
+let selected = null;
+let legalMoves = [];
+let aiThinking = false;
+let gameOver = false;
+let lastResult = null;
+let lastMove = null;
+let checkInfo = null;
+let captureFades = [];
+let moveAnim = null;
+let hintMove = null;
+let reviewIndex = null;
+let reviewBoard = null;
+let replay = null;
+let dirty = true;
+let pendingPromotion = null;
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+
+(function setupHiDPI() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = SIZE * dpr; canvas.height = SIZE * dpr;
+  canvas.style.width = SIZE + 'px'; canvas.style.height = SIZE + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+})();
+
+/* =========================================================================
+ * 一、对局状态：创建 / 克隆 / 局面键
+ * ========================================================================= */
+function createInitialBoard() {
+  const back = ['r','n','b','q','k','b','n','r'];
+  const b = [];
+  for (let r = 0; r < 8; r++) b.push(new Array(8).fill(null));
+  for (let c = 0; c < 8; c++) {
+    b[0][c] = { type: back[c], color: 'b' };
+    b[1][c] = { type: 'p', color: 'b' };
+    b[6][c] = { type: 'p', color: 'w' };
+    b[7][c] = { type: back[c], color: 'w' };
+  }
+  return b;
+}
+
+function newGameState() {
+  return {
+    board: createInitialBoard(),
+    turn: 'w',
+    castling: { wK: true, wQ: true, bK: true, bQ: true },
+    ep: null,        // {r,c}：可吃过路兵的目标格
+    halfmove: 0,     // 50 步规则计数
+    ply: 0,
+    repMap: {}       // 局面重复次数
+  };
+}
+
+function cloneBoard(bd) {
+  return bd.map(row => row.map(p => (p ? { type: p.type, color: p.color } : null)));
+}
+function cloneState(st) {
+  return {
+    board: cloneBoard(st.board),
+    turn: st.turn,
+    castling: Object.assign({}, st.castling),
+    ep: st.ep ? { r: st.ep.r, c: st.ep.c } : null,
+    halfmove: st.halfmove, ply: st.ply,
+    repMap: Object.assign({}, st.repMap)
+  };
+}
+
+// 局面唯一键（用于三次重复和棋）
+function positionKey(st) {
+  let s = '';
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = st.board[r][c];
+      s += p ? (p.color + p.type) : '.';
+    }
+  s += '|' + st.turn + '|' + (st.castling.wK?1:0) + (st.castling.wQ?1:0)
+     + (st.castling.bK?1:0) + (st.castling.bQ?1:0)
+     + '|' + (st.ep ? st.ep.r + '' + st.ep.c : '-');
+  return s;
+}
+
+/* =========================================================================
+ * 二、走法生成（六种棋子 + 王车易位 + 吃过路兵 + 兵升变）
+ * ========================================================================= */
+function toAlgebraic(r, c) { return FILES[c] + (8 - r); }
+
+function canLand(bd, r, c, color) {
+  if (r < 0 || r > 7 || c < 0 || c > 7) return false;
+  const t = bd[r][c];
+  if (!t) return 'empty';
+  return t.color !== color ? 'capture' : false;
+}
+
+function slide(bd, moves, r, c, color, dr, dc) {
+  let nr = r + dr, nc = c + dc;
+  while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+    const res = canLand(bd, nr, nc, color);
+    if (!res) break;
+    moves.push({ r: nr, c: nc, capture: res === 'capture' });
+    if (res === 'capture') break;
+    nr += dr; nc += dc;
+  }
+}
+
+// queenOnly=true 用于搜索阶段：升变只生成"变后"，避免分支爆炸
+function generateMoves(st, r, c, queenOnly) {
+  const bd = st.board;
+  const piece = bd[r][c];
+  if (!piece) return [];
+  const color = piece.color;
+  const moves = [];
+  const push = (nr, nc) => {
+    const res = canLand(bd, nr, nc, color);
+    if (res) moves.push({ r: nr, c: nc, capture: res === 'capture' });
+  };
+  const promoTypes = queenOnly ? ['q'] : ['q','r','b','n'];
+
+  switch (piece.type) {
+    case 'p': { // 【兵】前进 / 双格 / 斜吃 / 吃过路兵 / 升变
+      const dir = color === 'w' ? -1 : 1;
+      const startRow = color === 'w' ? 6 : 1;
+      const lastRow = color === 'w' ? 0 : 7;
+      const nr = r + dir;
+      if (nr >= 0 && nr < 8 && !bd[nr][c]) {
+        if (nr === lastRow) for (const t of promoTypes) moves.push({ r: nr, c, promotion: t, capture: false });
+        else moves.push({ r: nr, c, capture: false });
+        const nr2 = r + dir * 2;
+        if (r === startRow && !bd[nr2][c]) moves.push({ r: nr2, c, capture: false });
+      }
+      for (const dc of [-1, 1]) {
+        const nc = c + dc;
+        if (nc < 0 || nc > 7 || nr < 0 || nr > 7) continue;
+        if (bd[nr][nc] && bd[nr][nc].color !== color) {
+          if (nr === lastRow) for (const t of promoTypes) moves.push({ r: nr, c: nc, capture: true, promotion: t });
+          else moves.push({ r: nr, c: nc, capture: true });
+        }
+        /* 【吃过路兵】对方兵刚走过两格、且停在我方兵的同一横线相邻格 → 可以斜进吃掉它
+         * 权利只在紧接的下一回合有效（ep 每次走子都会重置），过时不候 */
+        else if (st.ep && st.ep.r === nr && st.ep.c === nc) {
+          moves.push({ r: nr, c: nc, capture: true, ep: true });
+        }
+      }
+      break;
+    }
+    case 'n':
+      for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) push(r+dr, c+dc);
+      break;
+    case 'b':
+      for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) slide(bd, moves, r, c, color, dr, dc);
+      break;
+    case 'r':
+      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) slide(bd, moves, r, c, color, dr, dc);
+      break;
+    case 'q':
+      for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]) slide(bd, moves, r, c, color, dr, dc);
+      break;
+    case 'k': { // 【王】周围一格 + 王车易位
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++)
+          if (dr || dc) push(r + dr, c + dc);
+
+      /* 【王车易位】国际象棋里唯一"一次移动两个子"的特殊规则：
+       * 条件：① 王与对应的车都没动过 ② 两者之间没有其他棋子
+       *      ③ 王的起始格 / 经过格 / 目标格都没有被对方攻击
+       * 短易位（K）：王向右两格，车跳到王左侧；长易位（Q）：王向左两格，车跳到王右侧 */
+      const homeRow = color === 'w' ? 7 : 0;
+      if (r === homeRow && c === 4) {
+        const enemy = color === 'w' ? 'b' : 'w';
+        const kKey = color === 'w' ? 'wK' : 'bK';
+        const qKey = color === 'w' ? 'wQ' : 'bQ';
+        if (st.castling[kKey] && !bd[homeRow][5] && !bd[homeRow][6]
+            && bd[homeRow][7] && bd[homeRow][7].type === 'r' && bd[homeRow][7].color === color
+            && !isSquareAttacked(bd, homeRow, 4, enemy)
+            && !isSquareAttacked(bd, homeRow, 5, enemy)
+            && !isSquareAttacked(bd, homeRow, 6, enemy)) {
+          moves.push({ r: homeRow, c: 6, castle: 'K' });
+        }
+        if (st.castling[qKey] && !bd[homeRow][1] && !bd[homeRow][2] && !bd[homeRow][3]
+            && bd[homeRow][0] && bd[homeRow][0].type === 'r' && bd[homeRow][0].color === color
+            && !isSquareAttacked(bd, homeRow, 4, enemy)
+            && !isSquareAttacked(bd, homeRow, 3, enemy)
+            && !isSquareAttacked(bd, homeRow, 2, enemy)) {
+          moves.push({ r: homeRow, c: 2, castle: 'Q' });
+        }
+      }
+      break;
+    }
+  }
+  return moves;
+}
+
+/* =========================================================================
+ * 三、将军判定 + 走子执行 / 撤销
+ * ========================================================================= */
+function isSquareAttacked(bd, r, c, byColor) {
+  for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
+    const p = bd[r+dr] && bd[r+dr][c+dc];
+    if (p && p.color === byColor && p.type === 'n') return true;
+  }
+  // 兵的攻击：白兵向"上"（r 变小）吃，所以能攻击到 (r,c) 的白兵在 r+1 行；
+  //            黑兵向"下"（r 变大）吃，所以能攻击到 (r,c) 的黑兵在 r-1 行。
+  const pawnDir = byColor === 'w' ? 1 : -1;
+  for (const dc of [-1, 1]) {
+    const p = bd[r + pawnDir] && bd[r + pawnDir][c + dc];
+    if (p && p.color === byColor && p.type === 'p') return true;
+  }
+  for (let dr = -1; dr <= 1; dr++)
+    for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const p = bd[r+dr] && bd[r+dr][c+dc];
+      if (p && p.color === byColor && p.type === 'k') return true;
+    }
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    let nr = r + dr, nc = c + dc;
+    while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+      const p = bd[nr][nc];
+      if (p) { if (p.color === byColor && (p.type === 'r' || p.type === 'q')) return true; break; }
+      nr += dr; nc += dc;
+    }
+  }
+  for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
+    let nr = r + dr, nc = c + dc;
+    while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+      const p = bd[nr][nc];
+      if (p) { if (p.color === byColor && (p.type === 'b' || p.type === 'q')) return true; break; }
+      nr += dr; nc += dc;
+    }
+  }
+  return false;
+}
+
+function findKing(bd, color) {
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = bd[r][c];
+      if (p && p.color === color && p.type === 'k') return { r, c };
+    }
+  return null;
+}
+function inCheck(st, color) {
+  const k = findKing(st.board, color);
+  if (!k) return false;
+  return isSquareAttacked(st.board, k.r, k.c, color === 'w' ? 'b' : 'w');
+}
+
+// 执行一步（返回撤销信息）
+function applyMoveTo(st, mv) {
+  const bd = st.board;
+  const fr = mv.from.r, fc = mv.from.c, tr = mv.to.r, tc = mv.to.c;
+  const piece = bd[fr][fc];
+  const undo = {
+    piece,                                   // 原棋子对象（升变时不修改它）
+    captured: bd[tr][tc] || null,
+    epCaptured: null, rook: null,
+    castling: Object.assign({}, st.castling),
+    ep: st.ep ? { r: st.ep.r, c: st.ep.c } : null,
+    halfmove: st.halfmove
+  };
+
+  // 吃过路兵：被吃的兵不在目标格，而在我方兵的旁边
+  if (mv.ep) { undo.epCaptured = bd[fr][tc]; bd[fr][tc] = null; }
+
+  bd[fr][fc] = null;
+  bd[tr][tc] = { type: mv.promotion || piece.type, color: piece.color };
+
+  // 王车易位：车一起挪（一次移动两个子）
+  if (mv.castle === 'K') { undo.rook = bd[fr][7]; bd[fr][5] = undo.rook; bd[fr][7] = null; }
+  else if (mv.castle === 'Q') { undo.rook = bd[fr][0]; bd[fr][3] = undo.rook; bd[fr][0] = null; }
+
+  // 易位权利更新：王动过 → 全部作废；车动过 / 被吃 → 对应一侧作废
+  if (piece.type === 'k') {
+    if (piece.color === 'w') { st.castling.wK = false; st.castling.wQ = false; }
+    else { st.castling.bK = false; st.castling.bQ = false; }
+  }
+  if (piece.type === 'r') {
+    if (piece.color === 'w' && fr === 7 && fc === 7) st.castling.wK = false;
+    if (piece.color === 'w' && fr === 7 && fc === 0) st.castling.wQ = false;
+    if (piece.color === 'b' && fr === 0 && fc === 7) st.castling.bK = false;
+    if (piece.color === 'b' && fr === 0 && fc === 0) st.castling.bQ = false;
+  }
+  if (undo.captured && undo.captured.type === 'r') {
+    if (tr === 7 && tc === 7) st.castling.wK = false;
+    if (tr === 7 && tc === 0) st.castling.wQ = false;
+    if (tr === 0 && tc === 7) st.castling.bK = false;
+    if (tr === 0 && tc === 0) st.castling.bQ = false;
+  }
+
+  // 吃过路兵目标格：只有兵刚走两格时才生成，下一回合自动失效
+  st.ep = (piece.type === 'p' && Math.abs(tr - fr) === 2) ? { r: (fr + tr) / 2, c: fc } : null;
+
+  // 50 步规则：兵动过或吃过子就清零
+  st.halfmove = (piece.type === 'p' || undo.captured || undo.epCaptured) ? 0 : st.halfmove + 1;
+  st.ply++;
+  st.turn = st.turn === 'w' ? 'b' : 'w';
+  return undo;
+}
+
+function undoMoveOn(st, mv, undo) {
+  const bd = st.board;
+  const fr = mv.from.r, fc = mv.from.c, tr = mv.to.r, tc = mv.to.c;
+  bd[fr][fc] = undo.piece;
+  bd[tr][tc] = undo.captured || null;
+  if (mv.ep) bd[fr][tc] = undo.epCaptured;
+  if (mv.castle === 'K') { bd[fr][7] = undo.rook; bd[fr][5] = null; }
+  if (mv.castle === 'Q') { bd[fr][0] = undo.rook; bd[fr][3] = null; }
+  st.castling = undo.castling;
+  st.ep = undo.ep;
+  st.halfmove = undo.halfmove;
+  st.ply--;
+  st.turn = st.turn === 'w' ? 'b' : 'w';
+}
+
+// 合法走法：过滤掉走完之后自家王被攻击的棋（禁止送王）
+function legalMovesFrom(st, r, c, queenOnly) {
+  const piece = st.board[r][c];
+  if (!piece) return [];
+  return generateMoves(st, r, c, queenOnly).filter(m => {
+    const mv = { from: { r, c }, to: { r: m.r, c: m.c }, promotion: m.promotion, castle: m.castle, ep: m.ep };
+    const undo = applyMoveTo(st, mv);
+    const bad = inCheck(st, piece.color);
+    undoMoveOn(st, mv, undo);
+    return !bad;
+  });
+}
+
+function allMovesFor(st, color, queenOnly) {
+  const list = [];
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = st.board[r][c];
+      if (!p || p.color !== color) continue;
+      for (const m of legalMovesFrom(st, r, c, queenOnly)) {
+        list.push({ from: { r, c }, to: { r: m.r, c: m.c }, promotion: m.promotion,
+                    castle: m.castle, ep: m.ep, capture: m.capture, type: p.type });
+      }
+    }
+  return list;
+}
+
+/* =========================================================================
+ * 四、评估函数 evaluate(st)
+ *【设计意图 · 必读】
+ * ① 子力价值表（兵1/马3/象3/车5/后9/王∞）是国际象棋最伟大的设计之一：
+ *    它给了玩家一把"尺子"，让每一次交换都能立刻判断合不合算——用兵换后当然赚，
+ *    用后换兵就是亏。AI 之所以"会算账"，正是因为我们把这张表写进了 evaluate()。
+ * ② 位置权重（中心 +10 / 兵推进 +5 / 棋子位置表 PST）体现"空间-时间-子力三维权衡"：
+ *    占住中心是看不见但可以换算的收益，与子力一样能计入评估分。
+ * ③ 开局原则：前 8 步鼓励出马出象、争中心、王车易位。
+ * 返回值以【白方视角】为正分。
+ * ========================================================================= */
+function evaluate(st) {
+  const lv = CONFIG.levels[CONFIG.difficulty];
+  let score = 0;
+  const bd = st.board;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = bd[r][c];
+      if (!p) continue;
+      const sign = p.color === 'w' ? 1 : -1;
+
+      score += sign * VALUES[p.type];                                     // (1) 子力价值
+
+      if ((r === 3 || r === 4) && (c === 3 || c === 4)) score += sign * 10; // (2a) 中心四格
+      if (p.type === 'p') {                                                // (2b) 兵推进
+        const adv = p.color === 'w' ? (6 - r) : (r - 1);
+        if (adv > 0) score += sign * adv * 5;
+      }
+      if (lv.usePst && (p.type === 'n' || p.type === 'p')) {              // (2c) 棋子位置表
+        const idx = p.color === 'w' ? (7 - r) : r;
+        score += sign * (p.type === 'n' ? PST_KNIGHT[idx][c] : PST_PAWN[idx][c]);
+      }
+      if (st.ply < 16 && (p.type === 'n' || p.type === 'b')) {            // (3) 开局出子
+        const home = p.color === 'w' ? 7 : 0;
+        if (r !== home) score += sign * 12;
+      }
+    }
+  }
+  if (st.ply < 16) {                                                      // (3) 开局易位
+    if (!st.castling.wK || !st.castling.wQ) score += 25;
+    if (!st.castling.bK || !st.castling.bQ) score -= 25;
+  }
+  if (lv.checkPenalty) {                                                  // (4) 将军惩罚
+    if (inCheck(st, 'w')) score -= 50;
+    if (inCheck(st, 'b')) score += 50;
+  }
+  return score;
+}
+/* =========================================================================
+ * 五、AI：极小化极大 + Alpha-Beta + 迭代加深 + 时间片分块
+ * 说明：file:// 直接打开时浏览器通常禁止创建 Blob Worker，
+ *      因此这里用"迭代加深 + 每帧只算 100ms 就把主线程还给浏览器"的分块方案，
+ *      效果与 Worker 一致：页面不掉帧、思考中提示可见、1.5 秒内一定出招。
+ * ========================================================================= */
+function orderMoves(st, moves) {
+  return moves.slice().sort((a, b) => {
+    const va = st.board[a.to.r][a.to.c] ? VALUES[st.board[a.to.r][a.to.c].type] : 0;
+    const vb = st.board[b.to.r][b.to.c] ? VALUES[st.board[b.to.r][b.to.c].type] : 0;
+    if (vb !== va) return vb - va;
+    // 开局小加分：易位与出子优先，让 AI 更像"懂开局的人"
+    const oa = (a.castle ? 30 : 0) + ((st.ply < 16 && (a.type === 'n' || a.type === 'b')) ? 10 : 0);
+    const ob = (b.castle ? 30 : 0) + ((st.ply < 16 && (b.type === 'n' || b.type === 'b')) ? 10 : 0);
+    return ob - oa;
+  });
+}
+
+function minimax(st, depth, alpha, beta, maximizing) {
+  if (depth === 0) return evaluate(st);
+  const side = maximizing ? 'w' : 'b';
+  const moves = allMovesFor(st, side, true);
+  if (moves.length === 0) {
+    if (inCheck(st, side)) return maximizing ? -(MATE + depth) : (MATE + depth);  // 将死
+    return 0;                                                                     // 逼和
+  }
+  let best = maximizing ? -Infinity : Infinity;
+  for (const mv of orderMoves(st, moves)) {
+    const undo = applyMoveTo(st, mv);
+    const sc = minimax(st, depth - 1, alpha, beta, !maximizing);
+    undoMoveOn(st, mv, undo);
+    if (maximizing) { if (sc > best) best = sc; if (best > alpha) alpha = best; }
+    else           { if (sc < best) best = sc; if (best < beta)  beta  = best; }
+    if (beta <= alpha) break;    // Alpha-Beta 剪枝
+  }
+  return best;
+}
+
+/* 迭代加深 + 时间片分块：每算满 100ms 就把主线程还给浏览器（刷新"思考中"提示），
+ * 累计超过 1.5 秒（或已达该难度最大深度）就用当前最优解落子。 */
+function searchBestMove(st, color, done) {
+  const lv = CONFIG.levels[CONFIG.difficulty];
+  const maximizing = (color === 'w');
+  const moves = allMovesFor(st, color, true);
+  if (!moves.length) { done(null); return; }
+
+  if (lv.blunderRate > 0 && Math.random() < lv.blunderRate) {   // 初级：一定概率手滑
+    done(moves[Math.floor(Math.random() * moves.length)]);
+    return;
+  }
+
+  const t0 = performance.now();
+  let depth = 1, idx = 0;
+  let best = moves[0];
+  let dBest = null, dBestScore = maximizing ? -Infinity : Infinity;
+  let order = orderMoves(st, moves);
+  const better = (a, b) => (maximizing ? a > b : a < b);
+
+  function tick() {
+    const sliceStart = performance.now();
+    while (idx < order.length) {
+      const mv = order[idx++];
+      const undo = applyMoveTo(st, mv);
+      const sc = minimax(st, depth - 1, -Infinity, Infinity, !maximizing);
+      undoMoveOn(st, mv, undo);
+      if (better(sc, dBestScore)) { dBestScore = sc; dBest = mv; }
+      if (performance.now() - t0 > CONFIG.timeBudgetMs && depth > 1) { done(best || dBest); return; }
+      if (performance.now() - sliceStart > CONFIG.frameSliceMs) break;   // 让出主线程
+    }
+    if (idx < order.length) { setTimeout(tick, 0); return; }             // 本层未完，下一片继续
+
+    best = dBest || best;
+    if (depth >= lv.depth || performance.now() - t0 > CONFIG.timeBudgetMs) { done(best); return; }
+
+    // 迭代加深进入下一层：把上一层最优着法排到最前，提高剪枝效率
+    depth++; idx = 0; dBest = null; dBestScore = maximizing ? -Infinity : Infinity;
+    order = [best].concat(order.filter(m => m !== best));
+    setTimeout(tick, 0);
+  }
+  tick();
+}
+
+// 对外 AI 接口（保留同名函数，方便替换与课堂讲解）
+function aiChooseMove(st, done) { searchBestMove(st, 'b', done); }
+
+/* =========================================================================
+ * 六、走子执行 + 终局判定
+ * ========================================================================= */
+function commitMove(mv) {
+  const mover = game.turn;
+  const pieceType = game.board[mv.from.r][mv.from.c].type;
+  const before = cloneState(game);
+  const undo = applyMoveTo(game, mv);
+  const victim = undo.captured || undo.epCaptured || null;
+
+  moveLog.push({
+    mover, pieceType, from: mv.from, to: mv.to,
+    promotion: mv.promotion || null, castle: mv.castle || null,
+    captured: victim ? { type: victim.type, color: victim.color } : null,
+    text: buildMoveText(mover, pieceType, mv, victim),
+    stateBefore: before, stateAfter: cloneState(game)
+  });
+
+  // 三次重复局面：同棋子分布 + 同走子方 + 同易位权 + 同 ep 出现三次 = 和棋
+  const key = positionKey(game);
+  game.repMap[key] = (game.repMap[key] || 0) + 1;
+
+  appendLogRow(moveLog.length - 1);
+  if (victim) {
+    captureFades.push({ r: mv.to.r, c: mv.to.c, glyph: GLYPH[victim.color][victim.type],
+                        color: victim.color, start: performance.now() });
+    addLootItem(mover, victim.color, victim.type);
+    playCapture();
+  } else {
+    playMove();
+  }
+  // 移动动画：200ms 缓动位移，从起点滑到终点
+  const moved = game.board[mv.to.r][mv.to.c];
+  moveAnim = { from: mv.from, to: mv.to, glyph: GLYPH[moved.color][moved.type],
+               color: moved.color, start: performance.now(), dur: 200 };
+
+  lastMove = { from: mv.from, to: mv.to };
+  selected = null; legalMoves = []; hintMove = null;
+  reviewIndex = null; reviewBoard = null;
+  document.getElementById('reviewBar').style.display = 'none';
+
+  refreshStatus();
+  saveGame();
+  dirty = true;
+}
+
+function buildMoveText(mover, pieceType, mv, victim) {
+  const side = mover === 'w' ? '白' : '黑';
+  let t;
+  if (mv.castle === 'K') t = `${side} · 短易位 O-O`;
+  else if (mv.castle === 'Q') t = `${side} · 长易位 O-O-O`;
+  else t = `${side} · ${NAME[pieceType]} ${toAlgebraic(mv.from.r, mv.from.c)}→${toAlgebraic(mv.to.r, mv.to.c)}`;
+  if (mv.promotion) t += ` 升变=${NAME[mv.promotion]}`;
+  if (victim) t += ` 吃${NAME[victim.type]}`;
+  return t;
+}
+
+// 走子之后刷新将军状态，并判定是否已经终局
+function refreshStatus() {
+  checkInfo = null;
+  const checked = inCheck(game, game.turn);
+  if (checked) {
+    const k = findKing(game.board, game.turn);
+    checkInfo = { color: game.turn, r: k.r, c: k.c };
+    showCheckBanner();
+    playCheck();
+  } else if (!gameOver) {
+    document.getElementById('bannerCheck').style.display = 'none';
+  }
+
+  const moves = allMovesFor(game, game.turn);
+  if (moves.length === 0) {                       // 将死 / 逼和
+    if (checked) {
+      finishGame(game.turn === 'w' ? 'loss' : 'win',
+                 game.turn === 'w' ? '你被将死了' : '漂亮的将杀！',
+                 game.turn === 'w'
+                   ? '电脑完成了将杀——试试切到初级难度，或者用"提示"看看它算出的最佳应手。'
+                   : '一击致命！这就是国际象棋最爽的瞬间：把对方的王逼到无处可逃。');
+    } else {
+      finishGame('draw', '逼和（Stalemate）',
+                 '轮到的一方无子可动但没被将军——按规则算和棋。国际象棋很仁慈：它不让你"因为没得走"而输。');
+    }
+    return;
+  }
+  if (insufficientMaterial(game)) {              // 子力不足
+    finishGame('draw', '子力不足，和棋',
+               '双方都已没有足够的子力完成将杀（仅剩王，或王象/王马对王）。');
+    return;
+  }
+  if (game.halfmove >= 100) {                    // 50 回合规则
+    finishGame('draw', '50 回合规则，和棋',
+               '连续 50 回合没有吃子、也没有兵前进——判定和棋。');
+    return;
+  }
+  if ((game.repMap[positionKey(game)] || 0) >= 3) {   // 三次重复
+    finishGame('draw', '三次重复局面，和棋',
+               '同一个局面出现了三次——谁也没能改变局势，判定和棋。');
+    return;
+  }
+  updatePanel();
+}
+
+// 子力不足：K vs K、K+B vs K、K+N vs K
+function insufficientMaterial(st) {
+  const pieces = [];
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = st.board[r][c];
+      if (p && p.type !== 'k') pieces.push(p.type);
+    }
+  if (pieces.length === 0) return true;
+  if (pieces.length === 1 && (pieces[0] === 'b' || pieces[0] === 'n')) return true;
+  return false;
+}
+
+function finishGame(key, title, comment) {
+  gameOver = true;
+  lastResult = { key, title, comment };
+  recordResult(key);
+  const el = document.getElementById('bannerCheck');
+  el.textContent = title;
+  el.style.display = 'block';
+  updatePanel();
+  setTimeout(showResultModal, 900);   // 稍等一下，让玩家看清最后一手
+}
+
+/* =========================================================================
+ * 七、玩家操作 / AI 回合
+ * ========================================================================= */
+function tryPlayerMove(from, to) {
+  const opts = legalMoves.filter(m => m.r === to.r && m.c === to.c);
+  if (!opts.length) return false;
+  if (opts[0].promotion) {                 // 兵升变：先弹出选择面板
+    pendingPromotion = { from, to, opts };
+    showPromotionModal();
+    return true;
+  }
+  doPlayerMove({ from, to: { r: to.r, c: to.c } });
+  return true;
+}
+
+function doPlayerMove(mv) {
+  commitMove(mv);
+  if (!gameOver) runAI();
+}
+
+function runAI() {
+  if (game.turn !== 'b' || gameOver) return;
+  aiThinking = true;
+  updatePanel();
+  dirty = true;
+  aiChooseMove(game, (mv) => {
+    aiThinking = false;
+    document.getElementById('bannerThink').style.display = 'none';
+    if (mv) {
+      if (mv.promotion) mv.promotion = 'q';   // AI 升变固定选后（最强）
+      commitMove(mv);
+    }
+    updatePanel();
+    dirty = true;
+  });
+}
+
+/* =========================================================================
+ * 八、Canvas 绘制
+ * ========================================================================= */
+function viewBoard() {
+  if (replay && replay.snapshot) return replay.snapshot.board;
+  if (reviewBoard) return reviewBoard;
+  return game ? game.board : createInitialBoard();
+}
+
+function drawPieceGlyph(ch, color, x, y, fontPx) {
+  ctx.font = `${fontPx}px "Segoe UI Symbol", "Arial Unicode MS", "Microsoft YaHei", serif`;
+  if (color === 'w') {
+    ctx.lineWidth = 3; ctx.strokeStyle = '#4a3520';
+    ctx.strokeText(ch, x, y);
+    ctx.fillStyle = '#fffdf5'; ctx.fillText(ch, x, y);
+  } else {
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,.35)';
+    ctx.strokeText(ch, x, y);
+    ctx.fillStyle = '#22160c'; ctx.fillText(ch, x, y);
+  }
+}
+
+function drawArrow(from, to) {
+  const x1 = from.c * SQ + SQ / 2, y1 = from.r * SQ + SQ / 2;
+  const x2 = to.c * SQ + SQ / 2,   y2 = to.r * SQ + SQ / 2;
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  ctx.strokeStyle = 'rgba(240,180,20,.95)';
+  ctx.fillStyle = 'rgba(240,180,20,.95)';
+  ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(x1, y1);
+  ctx.lineTo(x2 - Math.cos(ang) * 20, y2 - Math.sin(ang) * 20); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - Math.cos(ang - 0.4) * 22, y2 - Math.sin(ang - 0.4) * 22);
+  ctx.lineTo(x2 - Math.cos(ang + 0.4) * 22, y2 - Math.sin(ang + 0.4) * 22);
+  ctx.closePath(); ctx.fill();
+}
+
+function draw(now) {
+  const shown = viewBoard();
+  const frozen = !!replay || !!reviewBoard;
+  ctx.clearRect(0, 0, SIZE, SIZE);
+
+  // 1) 棋盘格
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      ctx.fillStyle = (r + c) % 2 === 0 ? LIGHT : DARK;
+      ctx.fillRect(c * SQ, r * SQ, SQ, SQ);
+    }
+
+  // 2) 上一步标记（半透明绿）
+  if (lastMove && !frozen) {
+    ctx.fillStyle = 'rgba(110,190,120,.45)';
+    ctx.fillRect(lastMove.from.c * SQ, lastMove.from.r * SQ, SQ, SQ);
+    ctx.fillRect(lastMove.to.c * SQ, lastMove.to.r * SQ, SQ, SQ);
+  }
+
+  // 3) 选中格（黄）+ 合法目标（黑点 / 红圈）
+  if (selected && !frozen) {
+    ctx.fillStyle = SELECT;
+    ctx.fillRect(selected.c * SQ, selected.r * SQ, SQ, SQ);
+    for (const m of legalMoves) {
+      const cx = m.c * SQ + SQ / 2, cy = m.r * SQ + SQ / 2;
+      if (m.capture) {
+        ctx.beginPath(); ctx.arc(cx, cy, SQ * 0.40, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(214,60,40,.85)'; ctx.lineWidth = 4; ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(cx, cy, SQ * 0.13, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill();
+      }
+    }
+  }
+
+  // 4) 坐标标记
+  ctx.font = '11px Consolas, monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = 'rgba(70,50,30,.55)';
+    ctx.fillText(FILES[i], i * SQ + 4, SIZE - 14);
+    ctx.fillStyle = 'rgba(70,50,30,.45)';
+    ctx.fillText(String(8 - i), 4, i * SQ + 4);
+  }
+
+  // 5) 棋子（正在做移动动画的那一枚先跳过，稍后单独画）
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const anim = moveAnim;
+  const animating = anim && (now - anim.start) < anim.dur && !frozen;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = shown[r][c];
+      if (!p) continue;
+      if (animating && r === anim.to.r && c === anim.to.c) continue;
+      drawPieceGlyph(GLYPH[p.color][p.type], p.color, c * SQ + SQ / 2, r * SQ + SQ / 2 + 2, 56);
+    }
+
+  // 6) 移动动画：200ms ease-out cubic
+  if (animating) {
+    const t = Math.min(1, (now - anim.start) / anim.dur);
+    const e = 1 - Math.pow(1 - t, 3);
+    const x = (anim.from.c + (anim.to.c - anim.from.c) * e) * SQ + SQ / 2;
+    const y = (anim.from.r + (anim.to.r - anim.from.r) * e) * SQ + SQ / 2 + 2;
+    drawPieceGlyph(anim.glyph, anim.color, x, y, 56);
+  }
+
+  // 7) 提示箭头
+  if (hintMove && !frozen) drawArrow(hintMove.from, hintMove.to);
+
+  // 8) 将军：王所在格闪烁红框
+  if (checkInfo && !frozen && !gameOver) {
+    const pulse = 0.45 + 0.45 * Math.abs(Math.sin(now / 220));
+    ctx.strokeStyle = `rgba(220,40,30,${pulse})`;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(checkInfo.c * SQ + 3, checkInfo.r * SQ + 3, SQ - 6, SQ - 6);
+  }
+
+  // 9) 吃子淡出（150ms）
+  if (captureFades.length) {
+    captureFades = captureFades.filter(f => {
+      const t = (now - f.start) / 150;
+      if (t >= 1) return false;
+      ctx.globalAlpha = 1 - t;
+      drawPieceGlyph(f.glyph, f.color, f.c * SQ + SQ / 2, f.r * SQ + SQ / 2, 56 + t * 18);
+      ctx.globalAlpha = 1;
+      return true;
+    });
+  }
+  dirty = false;
+}
+
+function loop(now) {
+  const animating = captureFades.length > 0
+                 || (moveAnim && (now - moveAnim.start) < moveAnim.dur)
+                 || (checkInfo && !replay && !reviewBoard && !gameOver)
+                 || aiThinking;
+  if (dirty || animating) draw(now);
+  if (moveAnim && (now - moveAnim.start) >= moveAnim.dur) moveAnim = null;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* =========================================================================
+ * 九、鼠标交互
+ * ========================================================================= */
+canvas.addEventListener('click', (e) => {
+  ensureAudio();
+  if (replay || reviewBoard) { exitReview(); return; }
+  if (!game || gameOver || aiThinking || game.turn !== 'w') return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (SIZE / rect.width);
+  const y = (e.clientY - rect.top) * (SIZE / rect.height);
+  const c = Math.floor(x / SQ), r = Math.floor(y / SQ);
+  if (r < 0 || r > 7 || c < 0 || c > 7) return;
+
+  const piece = game.board[r][c];
+  if (selected) {
+    if (tryPlayerMove(selected, { r, c })) return;
+  }
+  if (piece && piece.color === 'w') {
+    selected = { r, c };
+    legalMoves = legalMovesFrom(game, r, c);
+    if (legalMoves.length) playSelect();
+    showPieceInfo(piece);
+  } else {
+    selected = null; legalMoves = [];
+    document.getElementById('pieceInfo').textContent = '点击任意棋子，这里会显示它的名称、分值与一句话说明。';
+  }
+  dirty = true;
+});
+
+function showPieceInfo(p) {
+  const pts = p.type === 'k' ? '∞' : (VALUES[p.type] / 100).toFixed(0);
+  document.getElementById('pieceInfo').innerHTML =
+    `<b>${NAME[p.type]} ${NAME_EN[p.type]}</b> · ${pts} 分 · ${DESC[p.type]}`;
+}
+
+/* =========================================================================
+ * 十、音效（AudioContext 程序生成，无外部文件）
+ * ========================================================================= */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freq, dur, type = 'sine', gain = 0.06, delay = 0) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime + delay;
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = type; osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(t0); osc.stop(t0 + dur + 0.02);
+}
+const playMove    = () => tone(300, .08, 'triangle', .05);
+const playSelect  = () => tone(600, .05, 'sine', .04);
+const playCapture = () => { tone(180, .16, 'square', .07); tone(90, .18, 'sawtooth', .05); };
+const playCheck   = () => { tone(880, .09, 'square', .07); tone(660, .14, 'square', .07, .09); };
+/* =========================================================================
+ * 十一、界面刷新：面板 / 子力条 / 战利品 / 走子记录 / 统计
+ * ========================================================================= */
+function updatePanel() {
+  if (!game) return;
+  const badge = document.getElementById('turnBadge');
+  const thinking = (game.turn === 'b' && aiThinking);
+  badge.className = 'turn-badge ' + (game.turn === 'w' ? 'turn-w' : 'turn-b');
+  badge.textContent = gameOver ? '对局结束'
+                    : (game.turn === 'w' ? '白方（你）' : (thinking ? '黑方思考中…' : '黑方（电脑）'));
+  document.getElementById('plyCount').textContent = game.ply;
+  document.getElementById('moveCount').textContent = Math.floor(game.ply / 2) + 1;
+  document.getElementById('halfmove').textContent = game.halfmove;
+  document.getElementById('bannerThink').style.display = thinking ? 'block' : 'none';
+  updateMaterialBar();
+  updateStats();
+}
+
+// 子力优势条：把"看不见的强弱"变成"看得见的长度"（第 3 课 反馈 = 目标可见化）
+function updateMaterialBar() {
+  if (!game) return;
+  let w = 0, b = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const p = game.board[r][c];
+      if (!p || p.type === 'k') continue;
+      if (p.color === 'w') w += VALUES[p.type]; else b += VALUES[p.type];
+    }
+  const total = w + b || 1;
+  document.getElementById('matW').style.width = (w / total * 100) + '%';
+  document.getElementById('matB').style.width = (b / total * 100) + '%';
+  const diff = (w - b) / 100;
+  document.getElementById('matDiff').textContent = (diff > 0 ? '+' : '') + diff.toFixed(1);
+  document.getElementById('matSide').textContent = diff > 0 ? '白方占优' : (diff < 0 ? '黑方占优' : '势均力敌');
+}
+
+function addLootItem(owner, victimColor, type) {
+  const el = document.getElementById(owner === 'w' ? 'lootW' : 'lootB');
+  if (el.querySelector('.empty')) el.innerHTML = '';
+  const span = document.createElement('span');
+  span.className = 'loot-item';
+  span.textContent = GLYPH[victimColor][type];
+  el.appendChild(span);
+}
+
+// 用 moveLog 重建战利品（悔棋 / 读档时用）
+function rebuildLoot() {
+  for (const id of ['lootW', 'lootB']) document.getElementById(id).innerHTML = '<span class="empty">暂无</span>';
+  for (const m of moveLog) if (m.captured) addLootItem(m.mover, m.captured.color, m.captured.type);
+}
+
+function appendLogRow(idx) {
+  const logEl = document.getElementById('log');
+  if (logEl.querySelector('.empty')) logEl.innerHTML = '';
+  const item = moveLog[idx];
+  const line = document.createElement('div');
+  line.textContent = `${idx + 1}. ${item.text}`;
+  line.dataset.idx = idx;
+  if (item.captured) line.classList.add('cap');
+  line.addEventListener('click', () => enterReview(idx));
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function rebuildLogUI() {
+  const logEl = document.getElementById('log');
+  logEl.innerHTML = '<span class="empty">新局开始，白先走。</span>';
+  moveLog.forEach((_, i) => appendLogRow(i));
+}
+
+function enterReview(idx) {
+  if (moveLog[idx] && moveLog[idx].noSnapshot) { showTip('这一步来自读档存档，没有保存当时的局面快照'); return; }
+  reviewIndex = idx; reviewBoard = moveLog[idx].stateAfter.board;
+  document.getElementById('reviewNo').textContent = idx + 1;
+  document.getElementById('reviewBar').style.display = 'inline';
+  [...document.querySelectorAll('#log div')].forEach(d => d.classList.toggle('active', Number(d.dataset.idx) === idx));
+  dirty = true;
+}
+function exitReview() {
+  reviewIndex = null; reviewBoard = null;
+  document.getElementById('reviewBar').style.display = 'none';
+  [...document.querySelectorAll('#log div')].forEach(d => d.classList.remove('active'));
+  dirty = true;
+}
+
+function showCheckBanner() {
+  const el = document.getElementById('bannerCheck');
+  if (!gameOver) el.textContent = '将 军 ！';
+  el.style.display = 'block';
+}
+function showTip(text, ms = 2000) {
+  const el = document.getElementById('bannerTip');
+  el.textContent = text; el.style.display = 'block';
+  clearTimeout(showTip._t);
+  showTip._t = setTimeout(() => { el.style.display = 'none'; }, ms);
+}
+
+/* =========================================================================
+ * 十二、存档 / 统计 / 导出棋谱
+ * ========================================================================= */
+const LS_SAVE = 'chessmate_save_v3', LS_STATS = 'chessmate_stats_v3';
+
+function saveGame() {
+  if (!game) return;
+  try {
+    localStorage.setItem(LS_SAVE, JSON.stringify({
+      state: cloneState(game),
+      difficulty: CONFIG.difficulty,
+      moves: moveLog.map(m => ({
+        mover: m.mover, text: m.text,
+        captured: m.captured ? { type: m.captured.type, color: m.captured.color } : null
+      }))
+    }));
+  } catch (e) { /* 隐私模式下 localStorage 不可用，忽略即可 */ }
+}
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(LS_SAVE);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || !d.state || !d.state.board) return null;
+    return d;
+  } catch (e) { return null; }
+}
+
+function restoreGame(saved) {
+  game = saved.state;
+  game.repMap = game.repMap || {};
+  CONFIG.difficulty = saved.difficulty || 'normal';
+  document.getElementById('difficulty').value = CONFIG.difficulty;
+  document.getElementById('menuDifficulty').value = CONFIG.difficulty;
+  moveLog = [];
+  pendingPromotion = null;
+  // 读档只恢复文本与吃子信息（局面快照不落盘），因此这几步标记为不可逐步回顾
+  saved.moves.forEach(m => {
+    moveLog.push({ mover: m.mover, text: m.text, captured: m.captured, noSnapshot: true,
+                   stateBefore: cloneState(game), stateAfter: cloneState(game) });
+    appendLogRow(moveLog.length - 1);
+  });
+  if (!moveLog.length) document.getElementById('log').innerHTML = '<span class="empty">新局开始，白先走。</span>';
+  rebuildLoot();
+  gameOver = false; lastResult = null;
+  selected = null; legalMoves = []; hintMove = null; lastMove = null; checkInfo = null;
+  hideMenu();
+  refreshStatusSoft();     // 读档只刷新显示，避免把读进来的局面误判为终局
+  dirty = true;
+}
+
+function refreshStatusSoft() {
+  checkInfo = null;
+  if (inCheck(game, game.turn)) {
+    const k = findKing(game.board, game.turn);
+    checkInfo = { color: game.turn, r: k.r, c: k.c };
+    showCheckBanner();
+  } else {
+    document.getElementById('bannerCheck').style.display = 'none';
+  }
+  updatePanel();
+}
+
+function getStats() {
+  try { return JSON.parse(localStorage.getItem(LS_STATS)) || { games: 0, win: 0, loss: 0, draw: 0 }; }
+  catch (e) { return { games: 0, win: 0, loss: 0, draw: 0 }; }
+}
+function setStats(s) { try { localStorage.setItem(LS_STATS, JSON.stringify(s)); } catch (e) {} }
+function recordResult(key) {
+  const s = getStats();
+  s.games++;
+  if (key === 'win') s.win++; else if (key === 'loss') s.loss++; else s.draw++;
+  setStats(s);
+  updateStats();
+}
+function updateStats() {
+  const s = getStats();
+  document.getElementById('stGames').textContent = s.games;
+  document.getElementById('stWin').textContent = s.win;
+  document.getElementById('stLoss').textContent = s.loss;
+  document.getElementById('stDraw').textContent = s.draw;
+}
+
+function exportGameText() {
+  const lines = [];
+  lines.push('Chess Mate 棋谱导出');
+  lines.push('难度：' + CONFIG.levels[CONFIG.difficulty].name + '（搜索深度 ' + CONFIG.levels[CONFIG.difficulty].depth + '）');
+  lines.push('结果：' + (lastResult ? lastResult.title : '对局进行中'));
+  lines.push('--------------------------------');
+  moveLog.forEach((m, i) => lines.push(`${i + 1}. ${m.text}`));
+  return lines.join('\n');
+}
+
+/* =========================================================================
+ * 十三、弹窗：主菜单 / 升变 / 结算 / 说明 / 导出 / 复盘
+ * ========================================================================= */
+function hideMenu() { document.getElementById('menuOverlay').style.display = 'none'; }
+function showMenu() {
+  document.getElementById('menuOverlay').style.display = 'flex';
+  document.getElementById('btnContinue').disabled = !loadSaved();
+  updateStats();
+}
+
+// —— 主菜单背景：缓动的棋子剪影 ——
+(function menuBackground() {
+  const bg = document.getElementById('menuBg');
+  const bctx = bg.getContext('2d');
+  const glyphs = ['♔','♕','♖','♗','♘','♙','♚','♛','♜','♝','♞','♟'];
+  const items = [];
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    bg.width = window.innerWidth * dpr;
+    bg.height = window.innerHeight * dpr;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  for (let i = 0; i < 14; i++) {
+    items.push({
+      ch: glyphs[i % glyphs.length],
+      x: Math.random(), y: Math.random(),
+      s: 40 + Math.random() * 70,
+      v: 0.00006 + Math.random() * 0.00012,
+      a: 0.05 + Math.random() * 0.10,
+      drift: (Math.random() - .5) * 0.00004
+    });
+  }
+  let last = performance.now();
+  function anim(now) {
+    const dt = now - last; last = now;
+    const dpr = window.devicePixelRatio || 1;
+    const W = window.innerWidth, H = window.innerHeight;
+    bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bctx.clearRect(0, 0, W, H);
+    bctx.textAlign = 'center'; bctx.textBaseline = 'middle';
+    for (const it of items) {
+      it.y -= it.v * dt;
+      it.x += it.drift * dt;
+      if (it.y < -0.15) { it.y = 1.15; it.x = Math.random(); }
+      if (it.x < -0.1) it.x = 1.1;
+      if (it.x > 1.1) it.x = -0.1;
+      bctx.font = `${it.s}px "Segoe UI Symbol", "Arial Unicode MS", serif`;
+      bctx.fillStyle = `rgba(240,217,181,${it.a})`;
+      bctx.fillText(it.ch, it.x * W, it.y * H);
+    }
+    if (document.getElementById('menuOverlay').style.display !== 'none') requestAnimationFrame(anim);
+    else setTimeout(() => requestAnimationFrame(anim), 500);
+  }
+  requestAnimationFrame(anim);
+})();
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+/* —— 兵升变面板 ——
+ *【设计意图 · 兵升变】这是国际象棋给"弱者"的希望：
+ * 最小最弱的兵一路走到底线，就能变成最强的后。它让残局永远保留翻盘的可能——
+ * 不到最后一刻，谁也不知道会发生什么（第 8 课设计原则 4：创造"逆转希望"）。 */
+function showPromotionModal() {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal'; wrap.id = 'promoModal';
+  wrap.innerHTML = `
+    <div class="modal-box">
+      <h2>兵 升 变</h2>
+      <div class="sub">你的兵走到了对方底线，请选择它要变成什么：</div>
+      <p class="promo-tip">小兵也能当国王——这是国际象棋给弱者的希望。</p>
+      <div class="promo-grid">
+        <button data-t="q"><span>♕</span>后 · 9 分</button>
+        <button data-t="r"><span>♖</span>车 · 5 分</button>
+        <button data-t="b"><span>♗</span>象 · 3 分</button>
+        <button data-t="n"><span>♘</span>马 · 3 分</button>
+      </div>
+      <div class="sub">小贴士：绝大多数情况都选"后"；只有在"升马能将军或抽子"时才考虑马。</div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.querySelectorAll('.promo-grid button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.t;
+      closeModal('promoModal');
+      const p = pendingPromotion; pendingPromotion = null;
+      if (p) doPlayerMove({ from: p.from, to: { r: p.to.r, c: p.to.c }, promotion: t });
+    });
+  });
+}
+
+// —— 结算画面（含评价分曲线）——
+function showResultModal() {
+  const r = lastResult || { key: 'draw', title: '对局结束', comment: '' };
+  const wrap = document.createElement('div');
+  wrap.className = 'modal'; wrap.id = 'resultModal';
+  wrap.innerHTML = `
+    <div class="modal-box">
+      <h2 class="result-title">${r.title}</h2>
+      <div class="sub">${r.comment}</div>
+      <canvas id="chart" width="600" height="220"></canvas>
+      <div class="sub" id="chartTip" style="margin-top:8px"></div>
+      <div class="modal-actions">
+        <button class="btn" id="resReplay">观看复盘</button>
+        <button class="btn" id="resAgain">再来一局</button>
+        <button class="btn ghost" id="resExport">导出棋谱</button>
+        <button class="btn ghost" id="resMenu">返回主菜单</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  drawEvalChart(document.getElementById('chart'));
+  document.getElementById('resReplay').onclick = () => { closeModal('resultModal'); startReplay(); };
+  document.getElementById('resAgain').onclick  = () => { closeModal('resultModal'); startNewGame(); };
+  document.getElementById('resExport').onclick = () => { closeModal('resultModal'); showExportModal(); };
+  document.getElementById('resMenu').onclick   = () => { closeModal('resultModal'); showMenu(); };
+}
+
+// 评价分曲线：横轴回合数，纵轴白方视角评估分（看到自己哪一回合开始崩盘）
+function drawEvalChart(cv) {
+  const g = cv.getContext('2d');
+  const W = cv.width, H = cv.height, pad = 34;
+  const evals = moveLog.map(m => evaluate(m.stateAfter) / 100);
+  const pts = [0].concat(evals);
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = '#fffdf7'; g.fillRect(0, 0, W, H);
+
+  const maxAbs = Math.max(2, ...pts.map(Math.abs));
+  const xAt = i => pad + (W - pad * 2) * (i / Math.max(1, pts.length - 1));
+  const yAt = v => H / 2 - (v / maxAbs) * (H / 2 - pad);
+
+  g.strokeStyle = '#e6dcc6'; g.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad + (H - pad * 2) * i / 4;
+    g.beginPath(); g.moveTo(pad, y); g.lineTo(W - pad, y); g.stroke();
+  }
+  g.strokeStyle = '#8a5a2b'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(pad, yAt(0)); g.lineTo(W - pad, yAt(0)); g.stroke();
+
+  g.beginPath();
+  pts.forEach((v, i) => { const x = xAt(i), y = yAt(v); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.strokeStyle = '#b3412f'; g.lineWidth = 2.5; g.stroke();
+
+  // 标出最大跌幅点
+  let worst = 0, worstDrop = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const d = pts[i - 1] - pts[i];
+    if (d > worstDrop) { worstDrop = d; worst = i; }
+  }
+  if (worstDrop > 1) {
+    const x = xAt(worst), y = yAt(pts[worst]);
+    g.fillStyle = 'rgba(179,65,47,.15)';
+    g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#b3412f'; g.font = '12px Georgia, serif';
+    g.fillText('第 ' + worst + ' 步开始崩盘', Math.min(x + 12, W - 130), y - 10);
+  }
+
+  g.fillStyle = '#8a7661'; g.font = '12px Georgia, serif';
+  g.fillText('+' + maxAbs.toFixed(1), 6, pad + 4);
+  g.fillText('-' + maxAbs.toFixed(1), 6, H - pad + 4);
+  g.fillText('步数', W - pad - 6, H - 12);
+  g.fillText('白方评价分（单位：兵）', pad, 14);
+
+  const tip = document.getElementById('chartTip');
+  if (tip) tip.textContent = worstDrop > 1
+    ? `曲线往下掉 = 你在吃亏。最大一次下跌发生在第 ${worst} 步（约 ${worstDrop.toFixed(1)} 个兵），用"观看复盘"回去看看那一步。`
+    : '整局曲线很平稳，说明双方都没出现明显失误——下得很稳。';
+}
+
+// —— 复盘 ——
+function startReplay() {
+  if (!moveLog.length) { showTip('还没有可复盘的步骤'); return; }
+  replay = {
+    idx: moveLog.length - 1,
+    evals: moveLog.map(m => evaluate(m.stateAfter) / 100),
+    snapshots: moveLog.map(m => m.stateAfter),
+    timer: null, snapshot: null
+  };
+  document.getElementById('replayTotal').textContent = moveLog.length;
+  document.getElementById('replayBar').style.display = 'inline';
+  showReplayAt(replay.idx);
+}
+function showReplayAt(i) {
+  if (!replay) return;
+  replay.idx = Math.max(-1, Math.min(moveLog.length - 1, i));
+  replay.snapshot = replay.idx < 0 ? moveLog[0].stateBefore : replay.snapshots[replay.idx];
+  const ev = replay.idx < 0 ? evaluate(moveLog[0].stateBefore) / 100 : replay.evals[replay.idx];
+  document.getElementById('replayNo').textContent = replay.idx + 1;
+  document.getElementById('replayEval').textContent = (ev > 0 ? '+' : '') + ev.toFixed(1);
+  dirty = true;
+}
+function replayStep(d) {
+  if (!replay) return;
+  if (replay.idx + d > moveLog.length - 1) { stopAutoPlay(); showTip('已经是最后一步'); return; }
+  showReplayAt(Math.max(-1, replay.idx + d));
+}
+function stopAutoPlay() {
+  if (replay && replay.timer) {
+    clearInterval(replay.timer); replay.timer = null;
+    document.getElementById('replayPlay').textContent = '自动播放';
+  }
+}
+function toggleAutoPlay() {
+  if (!replay) return;
+  if (replay.timer) { stopAutoPlay(); return; }
+  document.getElementById('replayPlay').textContent = '暂停';
+  replay.timer = setInterval(() => {
+    if (replay.idx >= moveLog.length - 1) { stopAutoPlay(); return; }
+    replayStep(1);
+  }, 800);
+}
+function exitReplay() {
+  stopAutoPlay();
+  replay = null;
+  document.getElementById('replayBar').style.display = 'none';
+  exitReview();
+  dirty = true;
+}
+
+// —— 导出棋谱 ——
+function showExportModal() {
+  const text = exportGameText();
+  const wrap = document.createElement('div');
+  wrap.className = 'modal'; wrap.id = 'exportModal';
+  wrap.innerHTML = `
+    <div class="modal-box">
+      <h2>导出棋谱</h2>
+      <div class="sub">复制下面的文本即可提交作业（也可以直接下载 .txt 文件）：</div>
+      <textarea class="export" id="exportText" readonly></textarea>
+      <div class="modal-actions">
+        <button class="btn" id="expCopy">复制文本</button>
+        <button class="btn ghost" id="expDownload">下载 .txt</button>
+        <button class="btn ghost" id="expClose">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  document.getElementById('exportText').value = text;
+  document.getElementById('expCopy').onclick = async () => {
+    const ta = document.getElementById('exportText');
+    ta.select();
+    try { await navigator.clipboard.writeText(ta.value); showTip('棋谱已复制到剪贴板'); }
+    catch (e) { try { document.execCommand('copy'); showTip('棋谱已复制到剪贴板'); } catch (e2) { showTip('请手动全选复制'); } }
+  };
+  document.getElementById('expDownload').onclick = () => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'chess-mate-棋谱.txt';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  document.getElementById('expClose').onclick = () => closeModal('exportModal');
+}
+
+// —— 玩法说明 ——
+function showHowModal() {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal'; wrap.id = 'howModal';
+  wrap.innerHTML = `
+    <div class="modal-box">
+      <h2>玩法说明</h2>
+      <div class="sub">
+        <b>目标</b>：你是白方，把黑方的王将死就赢。<br /><br />
+        <b>操作</b>：点击己方棋子 → 黄格高亮 + 圆点标出所有合法目标；
+        红圈表示该格可以吃子；绿格是对手刚走的那一格。<br /><br />
+        <b>子力价值</b>：兵 1 · 马 3 · 象 3 · 车 5 · 后 9 · 王 ∞。
+        用它判断"这笔交换划不划算"。<br /><br />
+        <b>特殊规则</b>：<br />
+        · 王车易位：王与车都没动过、中间无子、王经过的格子不被攻击时，点王再点它左右两格。<br />
+        · 吃过路兵：对方兵刚走两格停在你兵的旁边，你可斜进吃掉它（仅当回合有效）。<br />
+        · 兵升变：兵走到对方底线可升变为后 / 车 / 象 / 马——<b>小兵也能当国王</b>。<br /><br />
+        <b>辅助功能</b>：悔棋（退两步）· 提示（AI 帮你算一步）· 认输 · 求和 · 导出棋谱。<br />
+        <b>难度</b>：初级看 1 步且会手滑；中级算 3 步；高级算 4 步且怕被将军。<br /><br />
+        <b>课程理论</b>：页面底部有「前 7 课理论对照」区，点卡片上的按钮可以把界面对应的那块高亮出来。
+      </div>
+      <div class="modal-actions"><button class="btn" id="howClose">知道了</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  document.getElementById('howClose').onclick = () => closeModal('howModal');
+}
+
+/* =========================================================================
+ * 十三之二、前 7 课理论对照区（页面底部那一排卡片）
+ * 数据来源就是《平面游戏设计》第 1–7 课教案里讲过的原词，
+ * 每张卡片的按钮会把界面上对应的那块 UI 高亮出来，方便课堂上投影讲解。
+ * ========================================================================= */
+const LESSONS = [
+  {
+    no: 1, title: '什么是游戏设计',
+    chips: ['Schell 定义', '四大特征', '玩具 vs 游戏'],
+    points: [
+      ['定义', '以娱乐为目的 · 有规则 · 有冲突 · 有目标 · 自愿参与'],
+      ['四大特征 → 本局', '目标 = 将死对方的王；规则 = 六种走法 + 特殊规则；冲突 = 你(白) vs 电脑(黑)；反馈 = 高亮/音效/优势条；自愿 = 难度自选、随时认输'],
+      ['记住这句', '没有明确终局条件的活动叫玩具，不叫游戏']
+    ],
+    spot: { sel: '#turnBadge', btn: '看「目标与冲突」', tip: '这个「轮到谁」就是冲突的入口——没有将死规则，它就只是玩具。' }
+  },
+  {
+    no: 2, title: 'MDA 框架',
+    chips: ['M 机制', 'D 动态', 'A 体验', '三顶帽子'],
+    points: [
+      ['M 机制层', '走法规则 · 子力价值表 VALUES · 搜索深度 · 位置表 PST'],
+      ['D 动态层', '兑子 · 牵制 · 弃子 · 空间争夺——规则里没写，是玩家自己长出来的'],
+      ['A 体验层', '紧张、懊悔、"我居然赢了"；设计师只能通过 M 间接影响它'],
+      ['三顶帽子', '戴玩家帽子：好玩吗？戴设计师帽子：改哪个 M？戴评论家帽子：为什么好玩？']
+    ],
+    spot: { sel: '#board', btn: '看「M 层规则」', tip: '棋盘上的规则就是 M；你脑子里算的「兑子划不划算」是 D——规则里可没有写「兑子」两个字。' }
+  },
+  {
+    no: 3, title: '规则 · 目标 · 反馈',
+    chips: ['目标四维度', '可感知进度', '正 / 负反馈'],
+    points: [
+      ['长期目标', '将死对方；短期目标：这一手吃什么'],
+      ['可感知进度', '子力优势条 + "+3.2" —— 随时知道自己领先还是落后'],
+      ['即时反馈', '点击 0.3 秒内有回应；吃子淡出 150ms；移动缓动 200ms；还有音效'],
+      ['负反馈', '初级 AI 故意犯错 + "提示"按钮 = 给卡住的玩家一个脚手架']
+    ],
+    spot: { sel: '.matbar', btn: '看「可感知进度」', tip: '这条彩色条就是可感知进度——第 3 课最实用的一条：让玩家随时知道自己在哪。' }
+  },
+  {
+    no: 4, title: '平衡 · 难度曲线 · 心流',
+    chips: ['对称平衡', '难度曲线', '心流：挑战 ≈ 技能'],
+    points: [
+      ['对称平衡', '双方同起点、同规则、同子力——国际象棋是最纯粹的对称平衡样本'],
+      ['难度曲线', '三档难度 = 搜索深度 1 / 3 / 4，这就是难度曲线的旋钮'],
+      ['心流', '挑战太高 → 焦虑；太低 → 无聊；适中 → 心流'],
+      ['看得见的心流', '结算时的评价分曲线会告诉你：第几步开始崩盘']
+    ],
+    spot: { sel: '#difficulty', btn: '看「挑战旋钮」', tip: '切一档难度再下——打不过不是你笨，是挑战超过了技能。这就是心流的旋钮。' }
+  },
+  {
+    no: 5, title: '玩家体验与心理学',
+    chips: ['Bartle 四分', '8 种乐趣', 'SDT：自主·胜任·归属'],
+    points: [
+      ['Bartle 四分', '成就型 → 局数统计 + 导出棋谱；探索型 → 提示 + 复盘；挑战型 → 高级难度'],
+      ['8 种乐趣', '挑战乐趣(将死) · 探索乐趣(提示/复盘) · 表达乐趣(你的棋风) · 沉浸乐趣(再来一局)'],
+      ['SDT', '自主感 = 难度自选 / 悔棋 / 认输；胜任感 = 评价分曲线 + 逐步复盘（看得懂自己为什么输）'],
+      ['记住这句', '内在动机 > 外在奖励——让你想再来一局的是"想赢"，不是奖励']
+    ],
+    spot: { sel: '.stats', btn: '看「成就统计」', tip: '胜/负/和统计服务 Bartle 的成就型玩家。第 5 课说：每种玩家的钱都要赚。' }
+  },
+  {
+    no: 6, title: '叙事与主题设计',
+    chips: ['线性 / 分支 / 涌现', '环境叙事', '主题即机制'],
+    points: [
+      ['涌现叙事', '没有剧本——棋谱就是你这一局的故事，可导出、可逐步回放'],
+      ['环境叙事', '古典木质棋桌配色 + 每个棋子的一句话说明'],
+      ['主题与机制统一', '"小兵也能当国王"这句话，正是兵升变这条规则本身'],
+      ['对比', '线性叙事 = 电影；分支叙事 = 多结局；涌现叙事 = 国际象棋']
+    ],
+    spot: { sel: '#log', btn: '看「你的故事」', tip: '这一列走子记录就是涌现故事——它不是编剧写的，是你一手一手走出来的。' }
+  },
+  {
+    no: 7, title: '桌游组件与术语',
+    chips: ['版图 / 骰子 / Token / 玩家板', '组件思维四原则', '回合·轮·阶段'],
+    points: [
+      ['版图', '固定 8×8 棋盘 = 空间维度；没有骰子 → 没有随机 → 完美信息（第 8 课原则 2 的来源）'],
+      ['组件对应', 'Token = Unicode 棋子；玩家板 = 右侧信息面板；事件日志 = 走子记录'],
+      ['组件思维', '一物一用；"棋子说明只在选中时才出现" = 控制信息量，不劝退新手'],
+      ['术语', '回合(Turn) / 轮(Round) / 阶段(Phase) —— 看右侧「当前回合」；区域控制 —— 中心格的争夺']
+    ],
+    spot: { sel: '.panel', btn: '看「玩家板」', tip: '右侧这块就是玩家板。再看棋盘——上面没有骰子，没有骰子就没有随机，这就是完美信息。' }
+  }
+];
+
+function renderTheory() {
+  const grid = document.getElementById('theoryGrid');
+  if (!grid) return;
+  grid.innerHTML = LESSONS.map(l => `
+    <div class="tcard">
+      <h4><span class="no">${l.no}</span>第 ${l.no} 课 · ${l.title}</h4>
+      <div class="chips">${l.chips.map(c => `<span class="chip">${c}</span>`).join('')}</div>
+      <ul>${l.points.map(p => `<li><b>${p[0]}</b>：${p[1]}</li>`).join('')}</ul>
+      <div class="spot"><button type="button" data-sel="${l.spot.sel}">${l.spot.btn} →</button></div>
+    </div>`).join('');
+  grid.querySelectorAll('.spot button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lesson = LESSONS.find(l => l.spot.sel === btn.dataset.sel);
+      flashSpot(btn.dataset.sel, lesson ? lesson.spot.tip : '');
+    });
+  });
+}
+
+// 把界面上对应的那块 UI 闪三下，并弹出一句讲解——课堂上可直接投影演示
+function flashSpot(sel, tip) {
+  const el = document.querySelector(sel);
+  if (el) {
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1800);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  if (tip) showTip(tip, 3600);
+}
+
+let theoryOpen = true;
+function setTheoryOpen(open) {
+  theoryOpen = open;
+  const grid = document.getElementById('theoryGrid');
+  const note = document.querySelector('.theory-note');
+  if (grid) grid.style.display = open ? 'grid' : 'none';
+  if (note) note.style.display = open ? 'block' : 'none';
+  document.getElementById('theoryToggle').textContent = open ? '收起 ▲' : '展开 ▼';
+}
+document.getElementById('theoryHead').addEventListener('click', () => setTheoryOpen(!theoryOpen));
+document.getElementById('btnTheory').addEventListener('click', () => {
+  setTheoryOpen(true);
+  document.getElementById('theoryWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+/* =========================================================================
+ * 十四、辅助功能：悔棋 / 提示 / 认输 / 求和
+ * ========================================================================= */
+// 悔棋：撤销"我的一步 + AI 的一步"
+function undoMove() {
+  if (!game || !moveLog.length) { showTip('还没有可以撤销的步数'); return; }
+  if (aiThinking) { showTip('电脑正在思考，请稍等'); return; }
+
+  let back = 1;
+  if (moveLog.length >= 2 && moveLog[moveLog.length - 1].mover === 'b') back = 2;
+
+  // 如果对局已结束，先把刚才记的战绩退回去，保持统计准确
+  if (gameOver && lastResult) {
+    const s = getStats();
+    s.games--;
+    if (lastResult.key === 'win') s.win--; else if (lastResult.key === 'loss') s.loss--; else s.draw--;
+    setStats(s);
+  }
+
+  const target = moveLog[moveLog.length - back];
+  game = cloneState(target.stateBefore);
+  moveLog.splice(moveLog.length - back);
+
+  gameOver = false; lastResult = null;
+  selected = null; legalMoves = []; hintMove = null; lastMove = null; checkInfo = null;
+  document.getElementById('bannerCheck').style.display = 'none';
+  document.getElementById('bannerThink').style.display = 'none';
+  closeModal('resultModal');
+
+  rebuildLogUI();
+  rebuildLoot();
+  refreshStatusSoft();
+  saveGame();
+  showTip(`已悔棋（退回 ${back} 步）`);
+  dirty = true;
+}
+
+/* 提示：调用 AI 为白方算一步，并在棋盘上用箭头标出
+ *【设计意图】提示不是"作弊"，而是给卡住的玩家一个脚手架：
+ * 它降低挫败感、把玩家重新拉回"技能≈挑战"的区间（第 3 课 负反馈 / 第 4 课 心流）。 */
+function giveHint() {
+  if (!game || gameOver || aiThinking || game.turn !== 'w') { showTip('现在不能给提示'); return; }
+  showTip('正在为你计算最佳着法…', 4000);
+  aiThinking = true;
+  updatePanel();
+  // 用一个状态副本去算，避免影响真实棋盘
+  const copy = cloneState(game);
+  searchBestMove(copy, 'w', (mv) => {
+    aiThinking = false;
+    updatePanel();
+    if (!mv) { showTip('没有可走的棋了'); return; }
+    hintMove = { from: mv.from, to: mv.to };
+    dirty = true;
+    const name = NAME[copy.board[mv.from.r][mv.from.c].type];
+    showTip(`建议：${name} ${toAlgebraic(mv.from.r, mv.from.c)} → ${toAlgebraic(mv.to.r, mv.to.c)}`);
+  });
+}
+
+function resign() {
+  if (!game || gameOver) return;
+  finishGame('loss', '你认输了', '认输也是一种策略——保存实力，再来一局。');
+}
+
+// 和棋请求：由 AI 根据当前局面评估决定接受或拒绝
+function offerDraw() {
+  if (!game || gameOver || aiThinking) return;
+  const ev = evaluate(game) / 100;      // 白方视角（>0 白优）
+  if (ev < -1.5) {
+    finishGame('draw', '和棋（电脑接受了求和）', '电脑认为自己已经吃亏，接受了你的和棋请求。');
+  } else {
+    showTip('电脑拒绝了和棋请求——它觉得自己还占着优势（当前评价分 ' + ev.toFixed(1) + '）', 2600);
+  }
+}
+
+/* =========================================================================
+ * 十五、新局 / 菜单 / 按钮绑定 / 启动
+ * ========================================================================= */
+function startNewGame() {
+  game = newGameState();
+  moveLog = [];
+  gameOver = false; lastResult = null;
+  selected = null; legalMoves = []; hintMove = null;
+  lastMove = null; checkInfo = null; reviewBoard = null; reviewIndex = null;
+  exitReplay();
+  document.getElementById('log').innerHTML = '<span class="empty">新局开始，白先走。</span>';
+  for (const id of ['lootW', 'lootB']) document.getElementById(id).innerHTML = '<span class="empty">暂无</span>';
+  document.getElementById('bannerCheck').style.display = 'none';
+  document.getElementById('bannerThink').style.display = 'none';
+  document.getElementById('reviewBar').style.display = 'none';
+  document.getElementById('pieceInfo').textContent = '点击任意棋子，这里会显示它的名称、分值与一句话说明。';
+  hideMenu();
+  updatePanel();
+  saveGame();
+  dirty = true;
+}
+
+document.getElementById('btnNew').addEventListener('click', () => { ensureAudio(); startNewGame(); });
+document.getElementById('btnUndo').addEventListener('click', undoMove);
+document.getElementById('btnHint').addEventListener('click', () => { ensureAudio(); giveHint(); });
+document.getElementById('btnResign').addEventListener('click', resign);
+document.getElementById('btnDraw').addEventListener('click', offerDraw);
+document.getElementById('btnExport').addEventListener('click', showExportModal);
+document.getElementById('btnMenu').addEventListener('click', showMenu);
+document.getElementById('btnBackNow').addEventListener('click', exitReview);
+
+document.getElementById('replayPrev').addEventListener('click', () => { stopAutoPlay(); replayStep(-1); });
+document.getElementById('replayNext').addEventListener('click', () => { stopAutoPlay(); replayStep(1); });
+document.getElementById('replayPlay').addEventListener('click', toggleAutoPlay);
+document.getElementById('replayExit').addEventListener('click', exitReplay);
+
+// 键盘：结算后 ↑↓ 逐步复盘
+window.addEventListener('keydown', (e) => {
+  if (!replay) return;
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { stopAutoPlay(); replayStep(-1); }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { stopAutoPlay(); replayStep(1); }
+  if (e.key === 'Escape') exitReplay();
+});
+
+function syncDifficulty(v) {
+  CONFIG.difficulty = v;
+  document.getElementById('difficulty').value = v;
+  document.getElementById('menuDifficulty').value = v;
+  updatePanel();
+}
+document.getElementById('difficulty').addEventListener('change', e => syncDifficulty(e.target.value));
+document.getElementById('menuDifficulty').addEventListener('change', e => syncDifficulty(e.target.value));
+
+document.getElementById('btnStart').addEventListener('click', () => { ensureAudio(); startNewGame(); });
+document.getElementById('btnContinue').addEventListener('click', () => {
+  ensureAudio();
+  const saved = loadSaved();
+  if (saved) { restoreGame(saved); showTip('已载入上次的对局'); }
+  else showTip('没有找到存档');
+});
+document.getElementById('btnHow').addEventListener('click', showHowModal);
+
+// 启动：先显示主菜单（右上角显示历史战绩）
+game = newGameState();
+updatePanel();
+renderTheory();
+showMenu();
+</script>
+</body>
+</html>
